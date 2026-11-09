@@ -1,0 +1,45 @@
+# Maintainer: rzy <me@23ro.org>
+pkgname=okular-backend-pdfium
+pkgver=0.1.0
+pkgrel=1
+# Latest PDFium binaries release when this PKGBUILD was updated; bump the tag
+# and checksum together when updating it.
+_pdfiumtag=8138
+pkgdesc="PDFium backend plugin for Okular"
+arch=('x86_64')
+url="https://github.com/l4rzy/okular-backend-pdfium"
+license=('GPL-2.0-or-later' 'MIT')
+depends=('okular' 'qt6-base' 'kcoreaddons')
+makedepends=('cmake' 'extra-cmake-modules' 'gcc' 'make' 'qt6-tools')
+source=("pdfium-linux-x64.tgz::https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F$_pdfiumtag/pdfium-linux-x64.tgz")
+sha256sums=('d6b1e28950a0392590d79bbdbb7eb19686872b688f8a36f170acb19e41473113')
+
+prepare() {
+  mkdir -p "$srcdir/pdfium"
+  tar -xzf "$srcdir/pdfium-linux-x64.tgz" -C "$srcdir/pdfium"
+  cp "$startdir/../cmake/PDFiumConfig.cmake" "$srcdir/pdfium/PDFiumConfig.cmake"
+  test -f "$srcdir/pdfium/include/fpdfview.h"
+  test -f "$srcdir/pdfium/lib/libpdfium.so"
+  test -f "$srcdir/pdfium/LICENSE"
+  test -d "$srcdir/pdfium/licenses"
+}
+
+build() {
+  cmake -B "$srcdir/build" -S "$startdir/.." \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DKDE_INSTALL_LIBDIR=lib \
+    -DKDE_INSTALL_USE_QT_SYS_PATHS=ON \
+    -DPDFium_DIR="$srcdir/pdfium"
+  cmake --build "$srcdir/build" --parallel "$(nproc)"
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install "$srcdir/build"
+
+  # The plugin uses a relative RPATH to find PDFium in the private libdir.
+  test -f "$pkgdir/usr/lib/qt6/plugins/okular_generators/okularGenerator_pdfium.so"
+  test -f "$pkgdir/usr/lib/okular-backend-pdfium/libpdfium.so"
+  test -f "$pkgdir/usr/share/doc/okular-backend-pdfium/LICENSE"
+  test -d "$pkgdir/usr/share/doc/okular-backend-pdfium/licenses"
+}

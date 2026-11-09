@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Name": "PDFium",
+        "Description": "PDF rendering with PDFium",
+        "Version": "0.1.0",
+        "License": "GPL-2.0-or-later",
+        "MimeTypes": ["application/pdf", "application/x-pdf"],
+        "ServiceTypes": ["okular/Generator"]
+    },
+    "X-KDE-Priority": 1,
+    "X-KDE-okularAPIVersion": 1
+}
