@@ -3,11 +3,16 @@
 #include "pdfiumhelpers.h"
 
 #include <okular/core/action.h>
+#include <okular/core/version.h>
 #include <fpdf_doc.h>
 #include <cpp/fpdf_scopers.h>
 #include <QSet>
 #include <QUrl>
 #include <limits>
+
+#if OKULAR_VERSION < QT_VERSION_CHECK(26, 12, 0)
+#include <QDomDocument>
+#endif
 
 namespace {
 Okular::DocumentViewport destination(FPDF_DOCUMENT document, FPDF_DEST dest)
@@ -118,7 +123,7 @@ std::unique_ptr<Okular::DocumentSynopsis> PdfiumNavigation::synopsis(FPDF_DOCUME
     }
     auto result = std::make_unique<Okular::DocumentSynopsis>();
     QSet<FPDF_BOOKMARK> visited;
-    const auto append = [&](auto &&self, FPDF_BOOKMARK bookmark, QDomNode parent, int depth) -> void {
+    const auto append = [&](auto &&self, FPDF_BOOKMARK bookmark, auto &&parent, int depth) -> void {
         // Malformed outlines can contain cycles or excessive nesting.
         if (depth > 128) {
             return;
@@ -126,16 +131,33 @@ std::unique_ptr<Okular::DocumentSynopsis> PdfiumNavigation::synopsis(FPDF_DOCUME
         for (; bookmark && !visited.contains(bookmark);
              bookmark = FPDFBookmark_GetNextSibling(document, bookmark)) {
             visited.insert(bookmark);
+#if OKULAR_VERSION >= QT_VERSION_CHECK(26, 12, 0)
+            Okular::DocumentSynopsis::ElementBuilder element(bookmarkTitle(bookmark));
+            element.setOpen(FPDFBookmark_GetCount(bookmark) > 0);
+#else
             QDomElement element = result->createElement(bookmarkTitle(bookmark));
             element.setAttribute(QStringLiteral("Open"), FPDFBookmark_GetCount(bookmark) > 0 ? QStringLiteral("true") : QStringLiteral("false"));
+#endif
             auto target = action(document, FPDFBookmark_GetDest(document, bookmark), FPDFBookmark_GetAction(bookmark));
             if (target && target->actionType() == Okular::Action::Goto) {
+#if OKULAR_VERSION >= QT_VERSION_CHECK(26, 12, 0)
+                element.setViewPort(static_cast<Okular::GotoAction *>(target.get())->destViewport());
+#else
                 element.setAttribute(QStringLiteral("Viewport"), static_cast<Okular::GotoAction *>(target.get())->destViewport().toString());
+#endif
             } else if (target && target->actionType() == Okular::Action::Browse) {
+#if OKULAR_VERSION >= QT_VERSION_CHECK(26, 12, 0)
+                element.setUrl(static_cast<Okular::BrowseAction *>(target.get())->url().toString());
+#else
                 element.setAttribute(QStringLiteral("URL"), static_cast<Okular::BrowseAction *>(target.get())->url().toString());
+#endif
             }
             self(self, FPDFBookmark_GetFirstChild(document, bookmark), element, depth + 1);
+#if OKULAR_VERSION >= QT_VERSION_CHECK(26, 12, 0)
+            parent.addChild(Okular::DocumentSynopsis::Element(element));
+#else
             parent.appendChild(element);
+#endif
         }
     };
     append(append, first, *result, 0);
